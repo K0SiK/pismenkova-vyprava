@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cesta za písmenky</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            touch-action: manipulation;
+            background-color: #f0fdf4; /* emerald-50 */
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23a7f3d0' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+        
+        #board-container {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            aspect-ratio: 1 / 1.2;
+            margin: auto;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 5px;
+        }
+
+        @media (min-width: 768px) {
+            #board-container {
+                aspect-ratio: 2 / 1;
+                gap: 10px;
+            }
+        }
+
+        .tile {
+            position: relative;
+            width: 100%;
+            height: 100%; /* Will be controlled by container height to keep squares */
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1), inset 0 2px 4px rgba(255,255,255,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            border: 2px solid rgba(255,255,255,0.7);
+            transition: transform 0.2s ease;
+        }
+        .tile:hover {
+            transform: scale(1.05);
+        }
+
+        .tile-number {
+            position: absolute;
+            top: 2px;
+            left: 6px;
+            font-size: clamp(0.6rem, 1.5vw, 0.9rem);
+            color: rgba(0,0,0,0.4);
+        }
+        .tile-content {
+            font-size: clamp(1rem, 4vw, 2rem);
+        }
+
+        .tile[data-tile-id="1"] { grid-area: 1 / 1; }
+        .tile[data-tile-id="2"] { grid-area: 1 / 2; }
+        .tile[data-tile-id="3"] { grid-area: 1 / 3; }
+        .tile[data-tile-id="4"] { grid-area: 1 / 4; }
+        .tile[data-tile-id="5"] { grid-area: 1 / 5; }
+        .tile[data-tile-id="6"] { grid-area: 1 / 6; }
+        .tile[data-tile-id="7"] { grid-area: 1 / 7; }
+        .tile[data-tile-id="8"] { grid-area: 1 / 8; }
+        
+        .tile[data-tile-id="16"] { grid-area: 2 / 1; }
+        .tile[data-tile-id="15"] { grid-area: 2 / 2; }
+        .tile[data-tile-id="14"] { grid-area: 2 / 3; }
+        .tile[data-tile-id="13"] { grid-area: 2 / 4; }
+        .tile[data-tile-id="12"] { grid-area: 2 / 5; }
+        .tile[data-tile-id="11"] { grid-area: 2 / 6; }
+        .tile[data-tile-id="10"] { grid-area: 2 / 7; }
+        .tile[data-tile-id="9"] { grid-area: 2 / 8; }
+
+        .tile[data-tile-id="17"] { grid-area: 3 / 1; }
+        .tile[data-tile-id="18"] { grid-area: 3 / 2; }
+        .tile[data-tile-id="19"] { grid-area: 3 / 3; }
+        .tile[data-tile-id="20"] { grid-area: 3 / 4; }
+        .tile[data-tile-id="21"] { grid-area: 3 / 5; }
+        .tile[data-tile-id="22"] { grid-area: 3 / 6; }
+        .tile[data-tile-id="23"] { grid-area: 3 / 7; }
+        .tile[data-tile-id="24"] { grid-area: 3 / 8; }
+
+        .tile[data-tile-id="32"] { grid-area: 4 / 1; }
+        .tile[data-tile-id="31"] { grid-area: 4 / 2; }
+        .tile[data-tile-id="30"] { grid-area: 4 / 3; }
+        .tile[data-tile-id="29"] { grid-area: 4 / 4; }
+        .tile[data-tile-id="28"] { grid-area: 4 / 5; }
+        .tile[data-tile-id="27"] { grid-area: 4 / 6; }
+        .tile[data-tile-id="26"] { grid-area: 4 / 7; }
+        .tile[data-tile-id="25"] { grid-area: 4 / 8; }
+        
+        .tile.start { background-color: #2dd4bf !important; color: white; }
+        .tile.end { background-color: #2dd4bf !important; color: white; }
+        .tile.malice { background-color: #c084fc; } /* purple-400 */
+
+        .player {
+            position: absolute;
+            transition: all 0.5s ease-in-out;
+            z-index: 10;
+        }
+        .player svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+        }
+
+        .dice { cursor: pointer; transition: transform 0.3s ease; }
+        .dice:hover { transform: scale(1.05); }
+        .dice.disabled { cursor: not-allowed; opacity: 0.5; }
+        .dice.rolling { animation: roll 0.7s ease-in-out; }
+        @keyframes roll {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(360deg) scale(1.2); }
+            100% { transform: rotate(720deg) scale(1); }
+        }
+        .modal, #setup-screen { animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .modal { max-height: 90vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        input[type="color"] {
+            -webkit-appearance: none; -moz-appearance: none; appearance: none;
+            width: 44px; height: 44px; background-color: transparent; border: none; cursor: pointer;
+        }
+        input[type="color"]::-webkit-color-swatch { border-radius: 50%; border: 2px solid #e5e7eb; }
+        input[type="color"]::-moz-color-swatch { border-radius: 50%; border: 2px solid #e5e7eb; }
+        .shape-btn, .player-count-btn {
+            width: 40px; height: 40px; cursor: pointer; border: 3px solid transparent;
+            transition: all 0.2s ease; display: flex; align-items: center; justify-content: center;
+            background-color: #e5e7eb; border-radius: 8px; font-weight: bold;
+        }
+        .shape-btn.selected, .player-count-btn.selected { border-color: #0d9488; background-color: #ccfbf1; }
+        .shape-btn svg { width: 24px; height: 24px; fill: #4b5563; }
+        .malice-card-btn {
+            background-color: #a855f7; color: white; padding: 8px 12px; border-radius: 9999px;
+            font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.2s ease;
+        }
+        .malice-card-btn:hover { background-color: #9333ea; transform: translateY(-2px); }
+        .malice-card-btn:disabled { background-color: #d8b4fe; cursor: not-allowed; transform: none; }
+        /* Odstraněno: styly pro skládání slov (.letter-tile, .answer-slot) nejsou již potřeba */
+
+        /* ================= MOBILE FRIENDLY ENHANCEMENTS ================= */
+        @media (max-width: 640px) {
+            body { padding: 0.5rem; }
+            h1 { font-size: clamp(1.75rem, 9vw, 2.6rem) !important; }
+            #game-panel { flex-direction: column; padding: 0.5rem; }
+            #message-log { height: 64px; font-size: 0.9rem; }
+            #dice-container { width: 72px; height: 72px; }
+            #dice { font-size: 3rem; }
+            .tile { border-radius: 10px; }
+            .tile-number { font-size: clamp(0.55rem, 2.2vw, 0.75rem); }
+            .tile-content { font-size: clamp(0.9rem, 4.5vw, 1.6rem); }
+            #setup-screen { padding: 1.25rem; }
+            .shape-btn, .player-count-btn { width: 44px; height: 44px; }
+            .malice-card-btn { padding: 6px 10px; font-size: 0.75rem; }
+            #board-container { aspect-ratio: 1 / 1; max-width: 100%; }
+            #modal-backdrop { padding: 0.75rem; }
+        }
+        @media (max-width: 400px) {
+            h1 { font-size: clamp(1.6rem, 10vw, 2.2rem) !important; }
+            #dice-container { width: 64px; height: 64px; }
+            #dice { font-size: 2.5rem; }
+        }
+
+        /* Landscape small height handling */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #game-panel { flex-direction: row; }
+            #board-container { aspect-ratio: 1 / 0.85; }
+            .modal { max-height: 85vh; }
+        }
+        /* Floating dice on very small devices for easier reach */
+        @media (max-width: 640px) {
+            #dice-container.floating { position: fixed; bottom: 0.75rem; right: 0.75rem; z-index: 40; box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
+        }
+        /* ================= END MOBILE ENHANCEMENTS ================= */
+
+        /* ============== MOBILE LANDSCAPE FULLSCREEN MODE ============== */
+        body.landscape-compact, html.landscape-compact {
+            padding: 0 !important;
+            margin: 0 !important;
+            height: 100%;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        body.landscape-compact #game-container {
+            max-width: 100vw;
+            width: 100vw;
+            margin: 0;
+        }
+        body.landscape-compact #game-panel {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            backdrop-filter: blur(8px);
+            background: rgba(255,255,255,0.65);
+            z-index: 25;
+            padding: 4px 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        body.landscape-compact #game-panel.panel-condensed {
+            padding: 2px 4px;
+            gap: 2px;
+            background: rgba(255,255,255,0.55);
+        }
+        body.landscape-compact #game-panel.panel-condensed #turn-indicator { font-size: 0.85rem; margin-bottom: 0; }
+        body.landscape-compact #game-panel.panel-condensed #message-log { height: 44px; font-size: 0.7rem; padding: 2px 4px; }
+        body.landscape-compact #game-panel.panel-condensed #dice-container { width: 56px; height: 56px; }
+        body.landscape-compact #game-panel.panel-condensed #dice { font-size: 2rem; }
+        body.landscape-compact #game-panel.panel-condensed .malice-card-btn { padding: 2px 6px; font-size: 0.6rem; }
+        body.landscape-compact #game-panel.panel-condensed #panel-toggle-btn { padding: 2px 4px; font-size: 0.65rem; }
+        body.landscape-compact #game-panel #message-log { height: 56px; }
+        body.landscape-compact h1 { display:none; }
+        body.landscape-compact #board-container {
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            margin: 0 auto;
+            /* top will be set dynamically based on panel height to avoid scroll */
+        }
+        body.landscape-compact #game-stage { position: relative; }
+        body.landscape-compact #dice-container.floating { bottom: 0.5rem; }
+        /* Toggle button for collapsing panel (optional style) */
+        body.landscape-compact #panel-toggle-btn { display:inline-flex; }
+        #panel-toggle-btn { display:none; }
+        body.landscape-compact .panel-collapsed #game-panel { transform: translateY(-100%); }
+        body.landscape-compact .panel-collapsed #board-container { top: 8px; }
+        /* ============== END MOBILE LANDSCAPE FULLSCREEN MODE ============== */
+    </style>
+</head>
+<body class=" text-gray-800 flex flex-col items-center justify-center min-h-screen p-2 sm:p-4">
+
+    <!-- Úvodní obrazovka -->
+    <div id="setup-screen" class="w-full max-w-lg mx-auto p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg">
+        <h1 class="text-4xl md:text-5xl font-bold text-center text-emerald-700 mb-6">Nastavení hry</h1>
+        <div class="mb-6">
+            <p class="text-xl font-bold text-gray-700 mb-2 text-center">Počet hráčů</p>
+            <div id="player-count-selector" class="flex justify-center space-x-2">
+                <button class="player-count-btn selected" data-count="2">2</button>
+                <button class="player-count-btn" data-count="3">3</button>
+                <button class="player-count-btn" data-count="4">4</button>
+            </div>
+        </div>
+        <div id="player-setups-container" class="space-y-4"></div>
+        <div class="mt-6 flex flex-col space-y-4">
+            <button id="sentence-settings-btn" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-full text-lg shadow-md transform hover:scale-105 transition-transform">Nastavení frází</button>
+            <button id="start-game-btn" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-full text-2xl shadow-lg transform hover:scale-105 transition-transform">Hrát!</button>
+        </div>
+    </div>
+
+    <!-- Herní obrazovka -->
+    <div id="game-container" class="w-full max-w-5xl mx-auto hidden">
+        <h1 class="text-4xl md:text-6xl font-bold text-center text-emerald-700 mb-4 md:mb-6" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.1);">Cesta za písmenky</h1>
+        <div id="game-stage" class="relative">
+            <div id="game-panel" class="flex flex-col md:flex-row items-center justify-between bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-2 md:p-4 mb-4 md:mb-6">
+                <button id="panel-toggle-btn" title="Skrýt / zobrazit panel" class="mr-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-3 py-2 rounded-lg shadow transition-transform active:scale-95 hidden">⬆️</button>
+                <div class="flex-1 flex flex-col items-center md:items-start">
+                    <div id="turn-indicator" class="text-xl md:text-2xl font-bold mb-2 text-center"></div>
+                    <div id="malice-cards-container" class="flex flex-wrap gap-2 h-12 items-center"></div>
+                </div>
+                <div class="flex items-center justify-between w-full md:w-auto md:space-x-4 mt-2 md:mt-0">
+                     <div id="message-log" class="text-base md:text-lg text-gray-600 h-20 md:h-24 w-full md:w-64 bg-gray-100 rounded-2xl p-2 md:p-3 text-center flex items-center justify-center shadow-inner mr-2 md:mr-0"></div>
+                    <div id="dice-container" class="w-20 h-20 md:w-24 md:h-24 bg-white rounded-2xl flex items-center justify-center shadow-md flex-shrink-0">
+                        <div id="dice" class="dice text-5xl md:text-6xl">🎲</div>
+                    </div>
+                </div>
+            </div>
+            <div id="board-container"></div>
+        </div>
+    </div>
+
+    <!-- Modální okna -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50 p-4">
+        <div id="reading-modal" class="modal bg-white rounded-2xl shadow-2xl p-4 sm:p-8 max-w-md w-full text-center hidden">
+            <h2 id="reading-title" class="text-xl sm:text-2xl font-bold text-sky-600 mb-4">Přečti nahlas:</h2>
+            <p id="reading-text" class="text-3xl sm:text-4xl font-bold mb-6 sm:mb-8 h-20 sm:h-24 flex items-center justify-center"></p>
+            <div class="flex flex-col sm:flex-row justify-around space-y-2 sm:space-y-0 sm:space-x-2">
+                <button id="btn-correct" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 sm:px-6 rounded-full text-base sm:text-lg shadow-lg transform hover:scale-105 transition-transform">Přečteno správně 👍</button>
+                <button id="btn-incorrect" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 sm:px-6 rounded-full text-base sm:text-lg shadow-lg transform hover:scale-105 transition-transform">Chyba ve čtení 👎</button>
+            </div>
+        </div>
+        <div id="result-modal" class="modal bg-white rounded-2xl shadow-2xl p-4 sm:p-8 max-w-md w-full text-center hidden">
+            <h2 id="result-title" class="text-4xl sm:text-5xl font-bold mb-4"></h2>
+            <p id="result-text" class="text-2xl text-gray-700 mb-6 sm:mb-8 h-16 sm:h-20 flex items-center justify-center"></p>
+            <button id="btn-continue" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-lg sm:text-xl shadow-lg transform hover:scale-105 transition-transform">Pokračovat</button>
+        </div>
+        <div id="winner-modal" class="modal bg-white rounded-2xl shadow-2xl p-4 sm:p-8 max-w-md w-full text-center hidden">
+            <h2 id="winner-title" class="text-4xl sm:text-5xl font-bold mb-4 text-amber-500">🎉 Vítězství! 🎉</h2>
+            <p id="winner-text" class="text-2xl sm:text-3xl text-gray-700 mb-6 sm:mb-8"></p>
+            <button id="btn-restart" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-full text-lg sm:text-xl shadow-lg transform hover:scale-105 transition-transform">Hrát znovu</button>
+        </div>
+        <div id="target-selection-modal" class="modal bg-white rounded-2xl shadow-2xl p-4 sm:p-8 max-w-md w-full text-center hidden">
+            <h2 class="text-2xl sm:text-3xl font-bold text-purple-600 mb-6">Vyber cíl</h2>
+            <div id="target-buttons-container" class="flex flex-col space-y-3"></div>
+        </div>
+        <div id="sentence-settings-modal" class="modal bg-white rounded-2xl shadow-2xl p-4 sm:p-8 max-w-lg w-full text-center hidden">
+            <h2 class="text-2xl sm:text-3xl font-bold text-gray-700 mb-6">Nastavení frází ke čtení</h2>
+            <div id="sentence-list" class="max-h-64 overflow-y-auto space-y-2 mb-4 border p-2 rounded-lg"></div>
+            <div class="flex space-x-2">
+                <input type="text" id="new-sentence-input" placeholder="Nová fráze..." class="flex-grow px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500">
+                <button id="add-sentence-btn" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-4 rounded-md shadow-md">Přidat</button>
+            </div>
+            <button id="save-sentences-btn" class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-full text-lg shadow-lg">Uložit a zavřít</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- MOBILE RESPONSIVE HELPERS ---
+            function adaptForMobile() {
+                const isMobile = window.innerWidth < 640;
+                const diceContainer = document.getElementById('dice-container');
+                resizeBoardToSquares();
+                if (isMobile && window.innerHeight < 650) diceContainer.classList.add('floating');
+                else diceContainer.classList.remove('floating');
+                applyLandscapeFullscreen();
+                fitGameStage();
+            }
+            window.addEventListener('resize', adaptForMobile, { passive: true });
+            window.addEventListener('orientationchange', () => setTimeout(adaptForMobile, 300));
+            // --- HERNÍ DATA --- (nyní dynamická díky editoru mapy)
+            let TOTAL_TILES = 32;
+            let taskTiles = [3, 5, 7, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30];
+            let maliceCardTiles = [6, 13, 21, 27];
+            let boardConfig = {
+                rows: 4,
+                cols: 8,
+                serpentine: true,
+                tiles: [] // {id, type} where type in ['start','end','task','malice','normal']
+            };
+            const defaultBoardInitializer = () => {
+                boardConfig.tiles = [];
+                for (let i = 1; i <= boardConfig.rows * boardConfig.cols; i++) {
+                    let type = 'normal';
+                    if (i === 1) type = 'start';
+                    else if (i === boardConfig.rows * boardConfig.cols) type = 'end';
+                    else if (taskTiles.includes(i)) type = 'task';
+                    else if (maliceCardTiles.includes(i)) type = 'malice';
+                    boardConfig.tiles.push({ id: i, type });
+                }
+            };
+            defaultBoardInitializer();
+            const playerShapes = {
+                circle: '<svg viewBox="0 0 100 100" fill="currentColor"><circle cx="50" cy="50" r="50"/></svg>',
+                square: '<svg viewBox="0 0 100 100" fill="currentColor"><rect width="100" height="100" rx="10"/></svg>',
+                triangle: '<svg viewBox="0 0 100 100" fill="currentColor"><polygon points="50,0 100,100 0,100"/></svg>',
+                star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>',
+                heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>',
+                person: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'
+            };
+            const defaultColors = ['#f87171', '#60a5fa', '#34d399', '#facc15'];
+
+            let readingSentences = ["Máma má.", "Malá lama mele.", "Ale, ale... mela!", "Máma mele. Ema mele.", "Ela. Lela. Ema.", "Lama mele.", "Ema má lem.", "Ale máma!", "Máma láme.", "Ema láme lem.", "Lama ale mele málo.", "Malá Ema.", "Máma a Ela.", "Lela a Ema.", "Málem máma.", "Lama a máma.", "Se.", "Sa.", "Sé.", "Sá.", "Les.", "Los.", "Osel.", "Sám.", "Sama.", "Maso.", "Máma má maso.", "Ema se má.", "Sálá."];
+            // (Odstraněno) Logika skládání slov byla vypuštěna – hra nyní používá pouze čtecí úkoly.
+
+            const jupiKarty = [
+                { title: "Jupí!", icon: "🚀", text: "Raketový start! Hoď kostkou ještě jednou.", action: async (gs) => { gs.extraTurn = true; continueTurn(); } },
+                { title: "Jupí!", icon: "🦘", text: "Velký skok! Postup o 4 políčka dopředu.", action: async (gs) => { await movePlayer(gs.currentPlayerIndex, 4); processMoveEnd(gs.currentPlayerIndex); } },
+                { title: "Jupí!", icon: "🗺️", text: "Chytrá zkratka! Posuň se na nejbližší žluté políčko před tebou.", action: async (gs) => { const currentPos = gs.players[gs.currentPlayerIndex].position; const nextTaskTile = taskTiles.find(t => t > currentPos) || TOTAL_TILES; const steps = nextTaskTile - currentPos; await movePlayer(gs.currentPlayerIndex, steps); processMoveEnd(gs.currentPlayerIndex); }},
+                { title: "Jupí!", icon: "💨", text: "Vítr do zad! Postup o 2 políčka vpřed.", action: async (gs) => { await movePlayer(gs.currentPlayerIndex, 2); processMoveEnd(gs.currentPlayerIndex); } },
+                { title: "Jupí!", icon: "👢", text: "Sedmimílové boty! Posuň se o 7 políček vpřed.", action: async (gs) => { await movePlayer(gs.currentPlayerIndex, 7); processMoveEnd(gs.currentPlayerIndex); } },
+                { title: "Jupí!", icon: "⚡", text: "Dvojitá rychlost! Při svém příštím hodu se posuneš o dvojnásobek.", action: async (gs) => { gs.players[gs.currentPlayerIndex].doubleNextRoll = true; continueTurn(); } },
+                { title: "Jupí!", icon: "🎁", text: "Dar pro kamarády! Všichni ostatní hráči postupují o 1 políčko.", action: async (gs) => { for(let i = 0; i < gs.players.length; i++) { if (i !== gs.currentPlayerIndex) { await movePlayer(i, 1); } } processMoveEnd(gs.currentPlayerIndex); }},
+                { title: "Jupí!", icon: "💃", text: "Tanečník radosti! Všichni tančí a ty postupuješ o 3 políčka.", action: async (gs) => { await movePlayer(gs.currentPlayerIndex, 3); processMoveEnd(gs.currentPlayerIndex); } }
+            ];
+            const jejdaKarty = [
+                { title: "Jejda!", icon: "🤢", text: "Klouzavé bláto! Vrať se o 3 políčka zpět.", action: async (gs, targetIndex) => { await movePlayer(targetIndex, -3); processMoveEnd(targetIndex); } },
+                { title: "Jejda!", icon: "👟", text: "Rozvázaná tkanička! Stojíš jedno kolo.", action: async (gs, targetIndex) => { gs.players[targetIndex].skipTurn = true; continueTurn(); } },
+                { title: "Jejda!", icon: "🌿", text: "Bludné kořeny! Vrať se o 2 políčka zpět.", action: async (gs, targetIndex) => { await movePlayer(targetIndex, -2); processMoveEnd(targetIndex); } },
+                { title: "Jejda!", icon: "🪰", text: "Ospalá moucha! V příštím kole se posuneš jen o 1 políčko.", action: async (gs, targetIndex) => { gs.players[targetIndex].nextRollMax = 1; continueTurn(); } },
+                { title: "Jejda!", icon: "🌪️", text: "Zafoukal vítr! Vrať se na nejbližší žluté políčko za tebou.", action: async (gs, targetIndex) => { const currentPos = gs.players[targetIndex].position; const prevTaskTile = [...taskTiles].reverse().find(t => t < currentPos) || 0; const steps = prevTaskTile - currentPos; await movePlayer(targetIndex, steps); processMoveEnd(targetIndex); }},
+                { title: "Jejda!", icon: "🌰", text: "Šišková brzda! Vrať se o 1 políčko zpět.", action: async (gs, targetIndex) => { await movePlayer(targetIndex, -1); processMoveEnd(targetIndex); } },
+                { title: "Jejda!", icon: "🔄", text: "Opačný den! Hoď kostkou a jdi dozadu.", action: async (gs, targetIndex) => { gs.players[targetIndex].reverseNextRoll = true; continueTurn(); } },
+                { title: "Jejda!", icon: "☁️", text: "Smůla pro všechny! Všichni hráči se musí posunout o 1 políčko zpět.", action: async (gs) => { for(let i = 0; i < gs.players.length; i++) { await movePlayer(i, -1, true); } continueTurn(); }}
+            ];
+            const skodolibeKarty = [
+                { name: "Šťouchanec", icon: "👊", description: "Posuň soupeře o 2 políčka zpět.", action: async (gs, targetIndex) => { await movePlayer(targetIndex, -2); }},
+                { name: "Výměna", icon: "🔄", description: "Vyměň si místo se soupeřem.", action: async (gs, targetIndex) => { const p1 = gs.players[gs.currentPlayerIndex]; const p2 = gs.players[targetIndex]; [p1.position, p2.position] = [p2.position, p1.position]; updatePlayerPositions(); messageLog.textContent = `${p1.name} si vyměnil(a) místo s ${p2.name}!`; await new Promise(r => setTimeout(r, 1000)); }},
+                { name: "Zastavení", icon: "🛑", description: "Soupeř příští kolo stojí.", action: async (gs, targetIndex) => { const opponent = gs.players[targetIndex]; opponent.skipTurn = true; messageLog.textContent = `${opponent.name} bude příští kolo stát!`; await new Promise(r => setTimeout(r, 1000)); }},
+                { name: "Zkouška čtení", icon: "📖", description: "Donuť soupeře číst.", action: async (gs, targetIndex) => { await showReadingCard(true, targetIndex); }},
+                { name: "Dvojitá smůla", icon: "💀", description: "Soupeř si lízne dvě Jejda karty.", action: async (gs, targetIndex) => { messageLog.textContent = `Dvojitá smůla pro ${gs.players[targetIndex].name}!`; await new Promise(r => setTimeout(r, 1000)); for (let i = 0; i < 2; i++) { const card = jejdaKarty[Math.floor(Math.random() * jejdaKarty.length)]; await showResultModal(card); await card.action(gameState, targetIndex); } }}
+            ];
+            let gameState = {};
+            const setupScreen = document.getElementById('setup-screen'); const gameContainer = document.getElementById('game-container'); const startGameBtn = document.getElementById('start-game-btn'); const boardContainer = document.getElementById('board-container'); const diceEl = document.getElementById('dice'); const turnIndicator = document.getElementById('turn-indicator'); const messageLog = document.getElementById('message-log'); const modalBackdrop = document.getElementById('modal-backdrop'); const readingModal = document.getElementById('reading-modal'); const resultModal = document.getElementById('result-modal'); const winnerModal = document.getElementById('winner-modal'); const targetSelectionModal = document.getElementById('target-selection-modal'); const maliceCardsContainer = document.getElementById('malice-cards-container'); const playerCountSelector = document.getElementById('player-count-selector'); const playerSetupsContainer = document.getElementById('player-setups-container'); const sentenceSettingsBtn = document.getElementById('sentence-settings-btn'); const sentenceSettingsModal = document.getElementById('sentence-settings-modal');
+            // Now that boardContainer is defined, perform initial mobile adaptation
+            adaptForMobile();
+            let selectedPlayerCount = 2;
+            // Map editor elements (added later after DOM query for modal)
+
+            startGameBtn.addEventListener('click', () => {
+                const playerSettings = [];
+                for (let i = 0; i < selectedPlayerCount; i++) {
+                    const name = document.getElementById(`player${i+1}-name`).value || `Hráč ${i+1}`;
+                    const color = document.getElementById(`player${i+1}-color`).value;
+                    const shape = document.querySelector(`input[name="player${i+1}-shape"]:checked`).value;
+                    playerSettings.push({ name, color, shape });
+                }
+                setupScreen.classList.add('hidden'); gameContainer.classList.remove('hidden'); initGame(playerSettings);
+            });
+
+            playerCountSelector.addEventListener('click', (e) => {
+                if (e.target.dataset.count) {
+                    selectedPlayerCount = parseInt(e.target.dataset.count);
+                    playerCountSelector.querySelectorAll('button').forEach(btn => btn.classList.remove('selected'));
+                    e.target.classList.add('selected');
+                    renderPlayerSetups();
+                }
+            });
+
+            playerSetupsContainer.addEventListener('click', e => {
+                const btn = e.target.closest('.shape-btn');
+                if (btn) {
+                    const setupBlock = btn.closest('.p-4');
+                    setupBlock.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                }
+            });
+
+            function renderPlayerSetups() {
+                playerSetupsContainer.innerHTML = '';
+                for (let i = 0; i < selectedPlayerCount; i++) {
+                    playerSetupsContainer.insertAdjacentHTML('beforeend', createPlayerSetupHTML(i));
+                }
+            }
+
+            function createPlayerSetupHTML(index) {
+                const playerNum = index + 1;
+                const shapesHTML = Object.keys(playerShapes).map((shape, shapeIndex) => `<label class="shape-btn ${shapeIndex === index % Object.keys(playerShapes).length ? 'selected' : ''}"><input type="radio" name="player${playerNum}-shape" value="${shape}" class="sr-only" ${shapeIndex === index % Object.keys(playerShapes).length ? 'checked' : ''}>${playerShapes[shape]}</label>`).join('');
+                return `<div class="p-4 border rounded-xl bg-gray-50"><div class="flex items-center justify-between"><label for="player${playerNum}-name" class="block text-xl font-bold text-gray-700">Hráč ${playerNum}</label><input type="color" id="player${playerNum}-color" value="${defaultColors[index]}"></div><input type="text" id="player${playerNum}-name" placeholder="Zadej jméno" value="Hráč ${playerNum}" class="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"><div class="mt-3"><p class="text-sm text-gray-600 mb-2">Vyber tvar:</p><div class="flex justify-center space-x-2 flex-wrap gap-2">${shapesHTML}</div></div></div>`;
+            }
+
+            sentenceSettingsBtn.addEventListener('click', () => { renderSentenceList(); showModal('sentence-settings'); });
+            // Přidat tlačítko pro editor mapy
+            const mapEditorBtn = document.createElement('button');
+            mapEditorBtn.id = 'map-editor-btn';
+            mapEditorBtn.className = 'w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-4 rounded-full text-lg shadow-md transform hover:scale-105 transition-transform';
+            mapEditorBtn.textContent = 'Editor mapy';
+            document.querySelector('#setup-screen .mt-6').insertBefore(mapEditorBtn, document.getElementById('sentence-settings-btn'));
+            mapEditorBtn.addEventListener('click', () => { openMapEditor(); });
+            document.getElementById('save-sentences-btn').addEventListener('click', () => { hideModal(); });
+            document.getElementById('add-sentence-btn').addEventListener('click', () => {
+                const input = document.getElementById('new-sentence-input'); const newSentence = input.value.trim();
+                if (newSentence) { readingSentences.push(newSentence); input.value = ''; renderSentenceList(); }
+            });
+            
+            function renderSentenceList() {
+                const listContainer = document.getElementById('sentence-list'); listContainer.innerHTML = '';
+                if (readingSentences.length === 0) { listContainer.innerHTML = '<p class="text-gray-500">Seznam je prázdný. Přidejte frázi!</p>'; }
+                else { readingSentences.forEach((sentence, index) => { const item = document.createElement('div'); item.className = 'flex items-center justify-between bg-gray-100 p-2 rounded'; item.innerHTML = `<span class="text-left">${sentence}</span><button data-index="${index}" class="delete-sentence-btn text-red-500 hover:text-red-700 font-bold text-xl">&times;</button>`; listContainer.appendChild(item); }); }
+                document.querySelectorAll('.delete-sentence-btn').forEach(btn => { btn.addEventListener('click', (e) => { const index = parseInt(e.target.dataset.index); readingSentences.splice(index, 1); renderSentenceList(); }); });
+            }
+            
+            function initGame(settings) {
+                gameState = { players: settings.map((s, i) => ({ id: i + 1, name: s.name, color: s.color, shape: s.shape, position: 1, maliceCards: [], skipTurn: false, doubleNextRoll: false, nextRollMax: 6, reverseNextRoll: false })), currentPlayerIndex: 0, isMoving: false, extraTurn: false, gameover: false, };
+                // Rebuild derived arrays from boardConfig
+                TOTAL_TILES = boardConfig.rows * boardConfig.cols;
+                taskTiles = boardConfig.tiles.filter(t => t.type === 'task').map(t => t.id);
+                maliceCardTiles = boardConfig.tiles.filter(t => t.type === 'malice').map(t => t.id);
+                drawBoard();
+                gameState.players.forEach(player => {
+                    const el = document.createElement('div'); el.id = `player${player.id}`; el.className = `player`;
+                    el.innerHTML = playerShapes[player.shape]; el.style.color = player.color;
+                    boardContainer.appendChild(el); player.el = el;
+                });
+                setTimeout(() => updatePlayerPositions(), 100);
+                updateTurnIndicator(); messageLog.textContent = `${gameState.players[0].name} začíná. Hoď kostkou!`;
+                diceEl.addEventListener('click', handleDiceRoll);
+                document.getElementById('btn-restart').addEventListener('click', () => { hideModal(); gameContainer.classList.add('hidden'); setupScreen.classList.remove('hidden'); });
+            }
+
+            function drawBoard() {
+                boardContainer.innerHTML = '';
+                boardContainer.style.gridTemplateColumns = `repeat(${boardConfig.cols}, 1fr)`;
+                boardContainer.style.gridTemplateRows = `repeat(${boardConfig.rows}, 1fr)`;
+                // Build visual placement list with serpentine logic
+                const placement = [];
+                let id = 1;
+                for (let r = 0; r < boardConfig.rows; r++) {
+                    const rowIds = [];
+                    for (let c = 0; c < boardConfig.cols; c++) { rowIds.push(id++); }
+                    if (boardConfig.serpentine && r % 2 === 1) rowIds.reverse();
+                    placement.push(...rowIds);
+                }
+                placement.forEach(tileId => {
+                    const tileMeta = boardConfig.tiles.find(t => t.id === tileId) || { id: tileId, type: 'normal' };
+                    const tile = document.createElement('div'); tile.dataset.tileId = tileMeta.id;
+                    let tileBgClass = '';
+                    if (tileMeta.type === 'start') tileBgClass = 'start';
+                    else if (tileMeta.type === 'end') tileBgClass = 'end';
+                    else if (tileMeta.type === 'malice') tileBgClass = 'malice';
+                    else if (tileMeta.type === 'task') tileBgClass = 'bg-orange-300';
+                    else tileBgClass = 'bg-sky-200';
+                    tile.className = `tile ${tileBgClass}`;
+                    const number = document.createElement('span'); number.className = 'tile-number'; number.textContent = tileMeta.id; tile.appendChild(number);
+                    const content = document.createElement('span'); content.className = 'tile-content';
+                    if (tileMeta.type === 'start') content.textContent = '▶️';
+                    else if (tileMeta.type === 'end') content.textContent = '🏁';
+                    else if (tileMeta.type === 'malice') content.textContent = '😈';
+                    else if (tileMeta.type === 'task') content.textContent = '❓';
+                    tile.appendChild(content);
+                    boardContainer.appendChild(tile);
+                });
+                // After creating tiles, enforce square ratio by adjusting container height
+                resizeBoardToSquares();
+            }
+
+            async function handleDiceRoll() {
+                if (gameState.isMoving || gameState.gameover) return; gameState.isMoving = true;
+                diceEl.classList.add('rolling'); await new Promise(resolve => setTimeout(resolve, 700)); diceEl.classList.remove('rolling');
+                let roll = Math.ceil(Math.random() * 6); const player = gameState.players[gameState.currentPlayerIndex];
+                if (player.nextRollMax < 6) { roll = Math.min(roll, player.nextRollMax); player.nextRollMax = 6; }
+                let move = player.doubleNextRoll ? roll * 2 : roll; if (player.reverseNextRoll) { move = -roll; }
+                diceEl.textContent = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][roll - 1];
+                messageLog.textContent = `${player.name} hodil(a) ${roll}.`;
+                player.doubleNextRoll = false; player.reverseNextRoll = false;
+                await movePlayer(gameState.currentPlayerIndex, move);
+                processMoveEnd(gameState.currentPlayerIndex);
+            }
+
+            function processMoveEnd(playerIndex) {
+                if (gameState.gameover) return;
+                const player = gameState.players[playerIndex]; const currentPos = player.position;
+                if (maliceCardTiles.includes(currentPos)) { 
+                    if (playerIndex === gameState.currentPlayerIndex) { 
+                        setTimeout(() => pickupMaliceCard(playerIndex), 500); 
+                    } else { 
+                        if (gameState.players.length > 0) continueTurn(); 
+                    } 
+                }
+                else if (taskTiles.includes(currentPos)) { 
+                    if (playerIndex === gameState.currentPlayerIndex) { 
+                        // Vždy čtecí karta (scramble hra odstraněna)
+                        setTimeout(() => showReadingCard(), 500); 
+                    } else { 
+                        if (gameState.players.length > 0) continueTurn(); 
+                    } 
+                }
+                else { if (gameState.players.length > 0) continueTurn(); }
+            }
+            
+            function continueTurn() {
+                if (gameState.gameover) return; const player = gameState.players[gameState.currentPlayerIndex];
+                if (!gameState.extraTurn) { nextTurn(); }
+                else { gameState.extraTurn = false; messageLog.textContent = `${player.name} hází znovu!`; gameState.isMoving = false; updateMaliceCardUI(); }
+            }
+
+            function movePlayer(playerIndex, steps, silent = false) {
+                 return new Promise(async resolve => {
+                    const player = gameState.players[playerIndex]; const startPos = player.position;
+                    let targetPos = startPos + steps;
+                    if (targetPos < 1) targetPos = 1; if (targetPos > TOTAL_TILES) targetPos = TOTAL_TILES;
+                    const stepDirection = steps > 0 ? 1 : -1;
+                    for (let i = startPos + stepDirection; (stepDirection > 0 ? i <= targetPos : i >= targetPos); i += stepDirection) {
+                        player.position = i; updatePlayerPositions(); await new Promise(r => setTimeout(r, 200));
+                    }
+                    player.position = targetPos; updatePlayerPositions();
+                    if (!silent && player.position >= TOTAL_TILES && playerIndex === gameState.currentPlayerIndex) { endGame(); }
+                    resolve();
+                });
+            }
+
+            function nextTurn() {
+                if (gameState.gameover) return;
+                gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+                updateTurnIndicator(); const nextPlayer = gameState.players[gameState.currentPlayerIndex];
+                if (nextPlayer.skipTurn) { nextPlayer.skipTurn = false; messageLog.textContent = `${nextPlayer.name} stojí.`; setTimeout(() => nextTurn(), 1000); }
+                else { messageLog.textContent = `Na řadě je ${nextPlayer.name}.`; gameState.isMoving = false; updateMaliceCardUI(); }
+            }
+            
+            function endGame() {
+                gameState.gameover = true; const winner = gameState.players[gameState.currentPlayerIndex];
+                document.getElementById('winner-text').textContent = `${winner.name} dorazil(a) do cíle!`;
+                showModal('winner');
+            }
+
+            async function pickupMaliceCard(playerIndex) {
+                const player = gameState.players[playerIndex]; 
+                const card = skodolibeKarty[Math.floor(Math.random() * skodolibeKarty.length)];
+                player.maliceCards.push(card); 
+                updateMaliceCardUI();
+                
+                const cardDisplay = card.icon ? `${card.icon} ${card.name}` : card.name;
+                await showResultModal({title: "😈", text: `Získal(a) jsi Škodolibou kartu: ${cardDisplay}!`});
+                continueTurn();
+            }
+
+            function updateMaliceCardUI() {
+                maliceCardsContainer.innerHTML = ''; 
+                const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+                currentPlayer.maliceCards.forEach((card, index) => {
+                    const btn = document.createElement('button'); 
+                    btn.className = 'malice-card-btn'; 
+                    
+                    // Zobrazit ikonku a název karty
+                    const displayText = card.icon ? `${card.icon} ${card.name}` : card.name;
+                    btn.textContent = displayText;
+                    
+                    btn.disabled = gameState.isMoving;
+                    btn.onclick = async () => {
+                        if (gameState.players.length <= 2) { 
+                            const opponentIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length; 
+                            playMaliceCard(card, index, opponentIndex); 
+                        } else { 
+                            showTargetSelectionModal(card, index); 
+                        }
+                    };
+                    maliceCardsContainer.appendChild(btn);
+                });
+            }
+
+            async function playMaliceCard(card, cardIndex, targetIndex) {
+                maliceCardsContainer.querySelectorAll('button').forEach(b => b.disabled = true); diceEl.classList.add('disabled');
+                const currentPlayer = gameState.players[gameState.currentPlayerIndex]; const targetPlayer = gameState.players[targetIndex];
+                messageLog.textContent = `${currentPlayer.name} zahrál(a) kartu ${card.name} na ${targetPlayer.name}!`;
+                await new Promise(r => setTimeout(r, 1500));
+                await card.action(gameState, targetIndex); currentPlayer.maliceCards.splice(cardIndex, 1);
+                messageLog.textContent = `Na řadě je ${currentPlayer.name}. Hoď kostkou!`;
+                diceEl.classList.remove('disabled'); updateMaliceCardUI();
+            }
+
+            function showTargetSelectionModal(card, cardIndex) {
+                const container = document.getElementById('target-buttons-container'); container.innerHTML = '';
+                gameState.players.forEach((player, index) => {
+                    if (index !== gameState.currentPlayerIndex) {
+                        const btn = document.createElement('button'); btn.className = 'bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-lg';
+                        btn.textContent = player.name; btn.style.color = player.color;
+                        btn.onclick = () => { hideModal(); playMaliceCard(card, cardIndex, index); };
+                        container.appendChild(btn);
+                    }
+                });
+                showModal('target-selection');
+            }
+            
+            async function showReadingCard(isForced = false, targetPlayerIndex = gameState.currentPlayerIndex) {
+                const sentence = readingSentences[Math.floor(Math.random() * readingSentences.length)];
+                const readingTitle = document.getElementById('reading-title');
+                readingTitle.textContent = isForced ? `Čte ${gameState.players[targetPlayerIndex].name}:` : 'Přečti nahlas:';
+                document.getElementById('reading-text').textContent = sentence;
+                const correctHandler = () => { if (isForced) { handleForcedReadingResult(true, targetPlayerIndex); } else { handleCardResult(true); } cleanup(); };
+                const incorrectHandler = () => { if (isForced) { handleForcedReadingResult(false, targetPlayerIndex); } else { handleCardResult(false); } cleanup(); };
+                const btnCorrect = document.getElementById('btn-correct'); const btnIncorrect = document.getElementById('btn-incorrect');
+                btnCorrect.onclick = correctHandler; btnIncorrect.onclick = incorrectHandler;
+                function cleanup() { btnCorrect.onclick = null; btnIncorrect.onclick = null; }
+                showModal('reading');
+            }
+            
+            async function handleForcedReadingResult(isCorrect, targetPlayerIndex) {
+                 hideModal();
+                 if (!isCorrect) {
+                     messageLog.textContent = `${gameState.players[targetPlayerIndex].name} neuspěl(a)!`; await new Promise(r => setTimeout(r, 1000));
+                     const card = jejdaKarty[Math.floor(Math.random() * jejdaKarty.length)]; await showResultModal(card); await card.action(gameState, targetPlayerIndex);
+                 } else { messageLog.textContent = `${gameState.players[targetPlayerIndex].name} uspěl(a)!`; await new Promise(r => setTimeout(r, 1000)); }
+            }
+
+            async function handleCardResult(isCorrect) {
+                hideModal(); await new Promise(r => setTimeout(r, 300));
+                const cardDeck = isCorrect ? jupiKarty : jejdaKarty; const card = cardDeck[Math.floor(Math.random() * cardDeck.length)];
+                await showResultModal(card); await card.action(gameState, gameState.currentPlayerIndex);
+            }
+
+            function showResultModal(card) {
+                return new Promise(resolve => {
+                    const titleElement = document.getElementById('result-title');
+                    const textElement = document.getElementById('result-text');
+                    
+                    // Zobrazit titulek s ikonkou pokud existuje
+                    const displayTitle = card.icon ? `${card.icon} ${card.title}` : card.title;
+                    titleElement.textContent = displayTitle;
+                    textElement.textContent = card.text;
+                    
+                    const titleClasses = "text-4xl sm:text-5xl font-bold mb-4";
+                    if (card.title === "Jupí!") { titleElement.className = `${titleClasses} text-amber-500`; }
+                    else if (card.title === "Jejda!") { titleElement.className = `${titleClasses} text-rose-500`; }
+                    else { titleElement.className = `${titleClasses} text-purple-500`; }
+                    
+                    showModal('result');
+                    document.getElementById('btn-continue').onclick = () => { hideModal(); resolve(); };
+                });
+            }
+
+            // (Odstraněno) Sekce Word Scramble Game Logic byla odstraněna.
+
+            function showModal(type) {
+                modalBackdrop.classList.remove('hidden');
+                                ['reading', 'result', 'winner', 'target-selection', 'sentence-settings', 'map-editor'].forEach(id => {
+                    document.getElementById(`${id}-modal`).classList.add('hidden');
+                });
+                const modalEl = document.getElementById(`${type}-modal`);
+                if (modalEl) modalEl.classList.remove('hidden');
+            }
+
+                        // ================== MAP EDITOR ==================
+                        // Vytvoření modalu pro map editor (vložíme na konec modal-backdropu)
+                        const mapEditorModal = document.createElement('div');
+                        mapEditorModal.id = 'map-editor-modal';
+                        mapEditorModal.className = 'modal bg-white rounded-2xl shadow-2xl p-4 sm:p-6 max-w-3xl w-full text-center hidden';
+                        mapEditorModal.innerHTML = `
+                                <h2 class="text-2xl sm:text-3xl font-bold text-indigo-600 mb-4">Editor mapy</h2>
+                                <div class="grid md:grid-cols-5 gap-4 text-left mb-4">
+                                    <div class="md:col-span-2 space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-semibold mb-1">Řádky</label>
+                                            <input id="map-rows" type="number" min="1" max="12" value="${boardConfig.rows}" class="w-full border rounded px-2 py-1" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold mb-1">Sloupce</label>
+                                            <input id="map-cols" type="number" min="1" max="16" value="${boardConfig.cols}" class="w-full border rounded px-2 py-1" />
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <input id="map-serpentine" type="checkbox" ${boardConfig.serpentine ? 'checked' : ''} />
+                                            <label for="map-serpentine" class="text-sm font-semibold select-none">Serpentinové pořadí</label>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold mb-1">Procento úkolových polí (❓)</label>
+                                            <input id="task-ratio" type="number" min="0" max="90" value="35" class="w-full border rounded px-2 py-1" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold mb-1">Procento škodolibých polí (😈)</label>
+                                            <input id="malice-ratio" type="number" min="0" max="60" value="12" class="w-full border rounded px-2 py-1" />
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-semibold mb-1">Paleta</p>
+                                            <div id="tile-palette" class="flex flex-wrap gap-2">
+                                                <div draggable="true" data-type="task" class="cursor-move px-3 py-1 rounded-full bg-orange-300 font-semibold shadow">❓ Úkol</div>
+                                                <div draggable="true" data-type="malice" class="cursor-move px-3 py-1 rounded-full bg-fuchsia-400 text-white font-semibold shadow">😈 Škodolibé</div>
+                                                <div draggable="true" data-type="normal" class="cursor-move px-3 py-1 rounded-full bg-sky-200 font-semibold shadow">• Normální</div>
+                                                <div class="px-3 py-1 rounded-full bg-emerald-400 text-white font-semibold shadow opacity-70" title="Start je pevně dán">▶️ Start</div>
+                                                <div class="px-3 py-1 rounded-full bg-emerald-500 text-white font-semibold shadow opacity-70" title="Cíl je pevně dán">🏁 Cíl</div>
+                                            </div>
+                                            <p class="text-xs text-gray-500 mt-1">Přetáhni typ na políčko. Start = 1, Cíl = poslední.</p>
+                                        </div>
+                                        <div class="flex gap-2 flex-wrap">
+                                            <button id="apply-size-btn" class="flex-1 bg-gray-200 hover:bg-gray-300 rounded px-3 py-2 font-semibold">Změnit velikost</button>
+                                            <button id="reset-map-btn" class="flex-1 bg-gray-200 hover:bg-gray-300 rounded px-3 py-2 font-semibold">Reset</button>
+                                            <button id="generate-map-btn" class="flex-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded px-3 py-2 font-semibold">🎲 Vygenerovat</button>
+                                        </div>
+                                    </div>
+                                    <div class="md:col-span-3">
+                                        <div id="map-grid-preview" class="grid gap-1 border rounded p-2 bg-gray-50" style="grid-template-columns: repeat(${boardConfig.cols}, minmax(0,1fr));"></div>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col sm:flex-row gap-3 mt-4">
+                                    <button id="close-map-editor" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-full">Zavřít</button>
+                                    <button id="save-map-editor" class="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-full">Uložit mapu</button>
+                                </div>
+                        `;
+                        document.getElementById('modal-backdrop').appendChild(mapEditorModal);
+
+                        function openMapEditor() {
+                                renderMapEditorGrid();
+                                showModal('map-editor');
+                        }
+
+                        function renderMapEditorGrid() {
+                                const grid = document.getElementById('map-grid-preview');
+                                grid.style.gridTemplateColumns = `repeat(${boardConfig.cols}, minmax(0,1fr))`;
+                                grid.innerHTML = '';
+                                // serpentine placement for preview to match game board
+                                const placement = [];
+                                let id = 1;
+                                for (let r = 0; r < boardConfig.rows; r++) {
+                                        const rowIds = [];
+                                        for (let c = 0; c < boardConfig.cols; c++) rowIds.push(id++);
+                                        if (boardConfig.serpentine && r % 2 === 1) rowIds.reverse();
+                                        placement.push(...rowIds);
+                                }
+                                placement.forEach(tileId => {
+                                        const meta = boardConfig.tiles.find(t => t.id === tileId) || { id: tileId, type: 'normal' };
+                                        const div = document.createElement('div');
+                                        div.className = 'relative text-xs md:text-sm aspect-square flex items-center justify-center font-bold rounded select-none border border-white shadow-inner';
+                                        div.dataset.id = meta.id;
+                                        div.draggable = true;
+                                        let bg = 'bg-sky-200'; let symbol = '';
+                                        if (meta.type === 'start') { bg = 'start bg-emerald-400 text-white'; symbol = '▶️'; }
+                                        else if (meta.type === 'end') { bg = 'end bg-emerald-500 text-white'; symbol = '🏁'; }
+                                        else if (meta.type === 'task') { bg = 'bg-orange-300'; symbol = '❓'; }
+                                        else if (meta.type === 'malice') { bg = 'bg-fuchsia-400 text-white'; symbol = '😈'; }
+                                        div.className += ' ' + bg;
+                                        div.textContent = symbol || meta.id;
+                                        // Drag target
+                                        div.addEventListener('dragover', e => { e.preventDefault(); div.classList.add('ring', 'ring-indigo-400'); });
+                                        div.addEventListener('dragleave', () => div.classList.remove('ring', 'ring-indigo-400'));
+                                        div.addEventListener('drop', e => {
+                                                e.preventDefault(); div.classList.remove('ring', 'ring-indigo-400');
+                                                const type = e.dataTransfer.getData('tile-type');
+                                                if (!type) return;
+                                                applyTileType(meta.id, type);
+                                                renderMapEditorGrid();
+                                        });
+                                        grid.appendChild(div);
+                                });
+                        }
+
+                        function applyTileType(id, type) {
+                                if (id === 1 || id === boardConfig.rows * boardConfig.cols) return; // keep start/end fixed
+                                const tile = boardConfig.tiles.find(t => t.id === id);
+                                if (tile) tile.type = type; else boardConfig.tiles.push({ id, type });
+                        }
+
+            function generateRandomMap() {
+                const total = boardConfig.rows * boardConfig.cols;
+                const interiorIds = [];
+                for (let i = 2; i < total; i++) interiorIds.push(i);
+                const shuffled = [...interiorIds].sort(() => Math.random() - 0.5);
+                // Čtení hodnot z UI (procenta) a převod na počty
+                const taskRatioInput = Math.min(100, Math.max(0, parseFloat(document.getElementById('task-ratio')?.value) || 0));
+                const maliceRatioInput = Math.min(100, Math.max(0, parseFloat(document.getElementById('malice-ratio')?.value) || 0));
+                let taskCount = Math.round(interiorIds.length * (taskRatioInput / 100));
+                let maliceCount = Math.round(interiorIds.length * (maliceRatioInput / 100));
+                // Zajištění minimálních hodnot (alespoň 1 úkol pro hratelnost)
+                if (taskCount === 0 && interiorIds.length > 0) taskCount = 1;
+                // Omezit součet aby nepřekročil interiér
+                if (taskCount + maliceCount > interiorIds.length) {
+                    // Preferenčně snižujeme malice count
+                    maliceCount = Math.max(0, interiorIds.length - taskCount);
+                }
+                // Pokud stále 0 a existuje prostor, přidej jedno škodolibé pokud byl požadavek > 0
+                if (maliceCount === 0 && maliceRatioInput > 0 && (taskCount < interiorIds.length)) maliceCount = 1;
+                const taskSet = new Set(shuffled.slice(0, taskCount));
+                const maliceSet = new Set();
+                let idx = taskCount;
+                while (maliceSet.size < maliceCount && idx < shuffled.length) {
+                    const cand = shuffled[idx++];
+                    if (!taskSet.has(cand)) maliceSet.add(cand);
+                }
+                boardConfig.tiles = [];
+                for (let i = 1; i <= total; i++) {
+                    let type = 'normal';
+                    if (i === 1) type = 'start';
+                    else if (i === total) type = 'end';
+                    else if (taskSet.has(i)) type = 'task';
+                    else if (maliceSet.has(i)) type = 'malice';
+                    boardConfig.tiles.push({ id: i, type });
+                }
+            }
+
+                        // Palette drag logic
+                        document.addEventListener('dragstart', e => {
+                                const t = e.target;
+                                if (t && t.getAttribute('draggable') === 'true' && t.dataset.type) {
+                                        e.dataTransfer.setData('tile-type', t.dataset.type);
+                                }
+                        });
+
+                        // Buttons inside modal
+                        mapEditorModal.addEventListener('click', e => {
+                                if (e.target.id === 'close-map-editor') hideModal();
+                                if (e.target.id === 'reset-map-btn') { defaultBoardInitializer(); renderMapEditorGrid(); }
+                                if (e.target.id === 'generate-map-btn') { generateRandomMap(); renderMapEditorGrid(); }
+                                if (e.target.id === 'apply-size-btn') {
+                                        const newRows = parseInt(document.getElementById('map-rows').value) || boardConfig.rows;
+                                        const newCols = parseInt(document.getElementById('map-cols').value) || boardConfig.cols;
+                                        const serp = document.getElementById('map-serpentine').checked;
+                                        boardConfig.rows = Math.min(Math.max(newRows,1), 12);
+                                        boardConfig.cols = Math.min(Math.max(newCols,1), 16);
+                                        boardConfig.serpentine = serp;
+                                        // Reinitialize tiles adjusting to new size
+                                        const oldTiles = [...boardConfig.tiles];
+                                        boardConfig.tiles = [];
+                                        for (let i = 1; i <= boardConfig.rows * boardConfig.cols; i++) {
+                                                let existing = oldTiles.find(t => t.id === i);
+                                                let type = existing ? existing.type : 'normal';
+                                                if (i === 1) type = 'start';
+                                                else if (i === boardConfig.rows * boardConfig.cols) type = 'end';
+                                                boardConfig.tiles.push({ id: i, type });
+                                        }
+                                        renderMapEditorGrid();
+                                }
+                                if (e.target.id === 'save-map-editor') {
+                                        // Persist arrays for game start (will be re-derived in initGame too)
+                                        taskTiles = boardConfig.tiles.filter(t => t.type === 'task').map(t => t.id);
+                                        maliceCardTiles = boardConfig.tiles.filter(t => t.type === 'malice').map(t => t.id);
+                                        TOTAL_TILES = boardConfig.rows * boardConfig.cols;
+                                        hideModal();
+                                }
+                        });
+
+                        // Toggle serpentine change on checkbox change (live preview)
+                        mapEditorModal.addEventListener('change', e => {
+                                if (e.target.id === 'map-serpentine') { boardConfig.serpentine = e.target.checked; renderMapEditorGrid(); }
+                        });
+                        // ================== END MAP EDITOR ==================
+
+            function hideModal() { modalBackdrop.classList.add('hidden'); }
+
+            function updatePlayerPositions() {
+                if (!gameState.players) return; const firstTile = document.querySelector('[data-tile-id="1"]'); if (!firstTile) return;
+                const playerSize = firstTile.offsetWidth * 0.4;
+                const positions = {}; gameState.players.forEach(p => { if (!positions[p.position]) positions[p.position] = []; positions[p.position].push(p.id); });
+                gameState.players.forEach((player) => {
+                    player.el.style.width = `${playerSize}px`; player.el.style.height = `${playerSize}px`;
+                    const tileId = player.position; if (tileId < 1) return;
+                    const targetTile = document.querySelector(`[data-tile-id="${tileId}"]`);
+                    if (targetTile) {
+                        const tileRect = targetTile.getBoundingClientRect(); const boardRect = boardContainer.getBoundingClientRect();
+                        const playersOnTile = positions[tileId]; const count = playersOnTile.length; const playerIndexOnTile = playersOnTile.indexOf(player.id);
+                        let targetLeft = (tileRect.left - boardRect.left) + (tileRect.width / 2) - (player.el.offsetWidth / 2);
+                        let targetTop = (tileRect.top - boardRect.top) + (tileRect.height / 2) - (player.el.offsetHeight / 2);
+                        if (count > 1) { const angle = (2 * Math.PI / count) * playerIndexOnTile; const radius = playerSize * 0.4; targetLeft += Math.cos(angle) * radius; targetTop += Math.sin(angle) * radius; }
+                        player.el.style.left = `${targetLeft}px`; player.el.style.top = `${targetTop}px`;
+                    }
+                });
+            }
+
+            function updateTurnIndicator() {
+                const player = gameState.players[gameState.currentPlayerIndex];
+                turnIndicator.textContent = `Na tahu je ${player.name}`; turnIndicator.style.color = player.color;
+                updateMaliceCardUI();
+            }
+            
+            renderPlayerSetups();
+            window.addEventListener('resize', () => { if (gameState.players) { updatePlayerPositions(); } });
+
+            // ================== SQUARE BOARD SIZE CALC ==================
+            function resizeBoardToSquares() {
+                const container = boardContainer;
+                if (!container) return;
+                // Base width = full available (within max-width already by CSS)
+                const panel = document.getElementById('game-panel');
+                const vw = window.innerWidth; const vh = window.innerHeight;
+                // Use actual rendered width (might be limited by max-width)
+                let width = container.clientWidth || Math.min(vw - 16, 900);
+                const desiredHeight = width * (boardConfig.rows / boardConfig.cols);
+                const reserved = panel ? panel.offsetHeight + 24 : 220;
+                const maxHeight = vh - reserved;
+                let height = desiredHeight;
+                if (height > maxHeight) {
+                    // Scale down width proportionally so height fits
+                    const scale = maxHeight / height;
+                    width = width * scale;
+                    height = maxHeight;
+                    container.style.width = width + 'px';
+                } else {
+                    container.style.width = '';
+                }
+                container.style.height = height + 'px';
+                // After resizing container, reposition players if needed
+                if (gameState.players && gameState.players.length) {
+                    requestAnimationFrame(() => updatePlayerPositions());
+                }
+            }
+            // Landscape fullscreen variant: base on height if landscape & mobile
+            function applyLandscapeFullscreen() {
+                const body = document.body;
+                const gameContainerHidden = gameContainer.classList.contains('hidden');
+                const landscape = window.matchMedia('(orientation: landscape)').matches;
+                const mobile = window.innerWidth <= 900 && window.innerHeight <= 600; // heuristic for tablets vs phones
+                if (!gameContainerHidden && landscape && mobile) {
+                    body.classList.add('landscape-compact');
+                    document.documentElement.classList.add('landscape-compact');
+                    // Recompute board using available height
+                    const panel = document.getElementById('game-panel');
+                    const container = boardContainer;
+                    if (container) {
+                        const vv = window.visualViewport || { width: window.innerWidth, height: window.innerHeight };
+                        const vh = vv.height; const vw = vv.width;
+                        const collapsed = body.classList.contains('panel-collapsed');
+                        // Reset condensed state initially each pass
+                        if (!collapsed) panel.classList.remove('panel-condensed');
+                        const panelH = collapsed ? 0 : (panel ? panel.offsetHeight : 60);
+                        // dynamic top offset (panel height + small gap unless collapsed)
+                        container.style.top = (collapsed ? 4 : (panelH + 4)) + 'px';
+                        const usableH = vh - (collapsed ? 8 : (panelH + 8)); // bottom gap
+                        const usableW = vw - 8; // small horizontal padding
+                        // Fit square grid proportionally: width:height = cols:rows
+                        let widthCandidate = usableW;
+                        let heightNeeded = widthCandidate * (boardConfig.rows / boardConfig.cols);
+                        if (heightNeeded > usableH) {
+                            heightNeeded = usableH;
+                            widthCandidate = heightNeeded * (boardConfig.cols / boardConfig.rows);
+                        }
+                        // Apply initial size
+                        container.style.width = widthCandidate + 'px';
+                        container.style.height = heightNeeded + 'px';
+                        // Center horizontally
+                        container.style.left = ((vw - widthCandidate) / 2) + 'px';
+                        container.style.right = 'auto';
+                        // If overflowing bottom (due to dynamic browser chrome), scale down once more
+                        requestAnimationFrame(() => {
+                            const rect = container.getBoundingClientRect();
+                            const overflowInitial = rect.bottom - vh;
+                            if (overflowInitial > 2) {
+                                // First attempt: if not collapsed and not condensed yet, condense panel and retry
+                                if (!collapsed && !panel.classList.contains('panel-condensed')) {
+                                    panel.classList.add('panel-condensed');
+                                    applyLandscapeFullscreen();
+                                    return;
+                                }
+                                // Second attempt: collapse panel if still overflowing
+                                if (!collapsed) {
+                                    body.classList.add('panel-collapsed');
+                                    applyLandscapeFullscreen();
+                                    return;
+                                }
+                                // Final attempt: scale board down
+                                const overflow = rect.bottom - vh + 4;
+                                const scale = (heightNeeded - overflow) / heightNeeded;
+                                if (scale < 1 && scale > 0.4) {
+                                    heightNeeded = heightNeeded * scale;
+                                    widthCandidate = widthCandidate * scale;
+                                    container.style.width = widthCandidate + 'px';
+                                    container.style.height = heightNeeded + 'px';
+                                    container.style.left = ((vw - widthCandidate) / 2) + 'px';
+                                }
+                            }
+                            if (gameState.players && gameState.players.length) updatePlayerPositions();
+                        });
+                    }
+                } else {
+                    body.classList.remove('landscape-compact');
+                    document.documentElement.classList.remove('landscape-compact');
+                    body.classList.remove('panel-collapsed');
+                    document.getElementById('game-panel')?.classList.remove('panel-condensed');
+                    fitGameStage();
+                }
+            }
+            // Panel collapse toggle
+            const panelToggleBtn = document.getElementById('panel-toggle-btn');
+            panelToggleBtn.addEventListener('click', () => {
+                document.body.classList.toggle('panel-collapsed');
+                // Change icon
+                if (document.body.classList.contains('panel-collapsed')) {
+                    panelToggleBtn.textContent = '⬇️';
+                } else {
+                    panelToggleBtn.textContent = '⬆️';
+                }
+                // Recompute layout after transition
+                setTimeout(() => applyLandscapeFullscreen(), 50);
+            });
+            // ================== END SQUARE BOARD SIZE CALC ==================
+            function fitGameStage() {
+                const stage = document.getElementById('game-stage');
+                if (!stage) return;
+                const gameContainerHidden = gameContainer.classList.contains('hidden');
+                const landscape = window.matchMedia('(orientation: landscape)').matches;
+                const mobile = window.innerWidth <= 900 && window.innerHeight <= 600;
+                if (!gameContainerHidden && landscape && mobile) {
+                    stage.style.transformOrigin = 'top center';
+                    stage.style.transform = 'none';
+                    const vv = window.visualViewport || { height: window.innerHeight };
+                    const vh = vv.height;
+                    const rect = stage.getBoundingClientRect();
+                    if (rect.height > vh) {
+                        const scale = Math.max(0.5, Math.min(1, vh / rect.height));
+                        stage.style.transform = `scale(${scale})`;
+                        stage.style.width = '100%';
+                    }
+                } else {
+                    stage.style.transform = '';
+                    stage.style.width = '';
+                }
+            }
+            window.addEventListener('resize', () => fitGameStage(), { passive: true });
+            window.addEventListener('orientationchange', () => setTimeout(fitGameStage, 400));
+        });
+    </script>
+</body>
+</html>
+
+
